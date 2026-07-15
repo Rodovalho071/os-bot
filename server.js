@@ -187,13 +187,17 @@ async function salvar(de, r) {
   };
   const num = String(numero).padStart(4, '0');
 
-  // Arquivos no Drive (comprovantes)
-  if (r.foto) os.linkFoto = await db.subirArquivo(r.foto.buffer, `OS${num}-placa.jpg`, r.foto.mime);
-  if (r.audio) os.linkAudio = await db.subirArquivo(r.audio.buffer, `OS${num}-audio.ogg`, r.audio.mime);
+  // Arquivos no Drive (comprovantes) — opcionais; ver nota em /api/os
+  const tentarUploadBot = async (buf, nome, mime) => {
+    try { return await db.subirArquivo(buf, nome, mime); }
+    catch (e) { console.warn(`Drive recusou ${nome}: ${e.message}`); return ''; }
+  };
+  if (r.foto) os.linkFoto = await tentarUploadBot(r.foto.buffer, `OS${num}-placa.jpg`, r.foto.mime);
+  if (r.audio) os.linkAudio = await tentarUploadBot(r.audio.buffer, `OS${num}-audio.ogg`, r.audio.mime);
 
   // PDF
   const pdf = await gerarPdfOS(os);
-  os.linkPdf = await db.subirArquivo(pdf, `OS${num}.pdf`, 'application/pdf');
+  os.linkPdf = await tentarUploadBot(pdf, `OS${num}.pdf`, 'application/pdf');
 
   // Planilha
   await db.salvarOS(os);
@@ -271,11 +275,17 @@ app.post('/api/os', async (req, res) => {
     os.total = itens.reduce((s, i) => s + i.valor, 0) + os.maoDeObra;
     const num = String(numero).padStart(4, '0');
 
-    if (b.foto) os.linkFoto = await db.subirArquivo(Buffer.from(b.foto, 'base64'), `OS${num}-placa.jpg`, b.fotoMime || 'image/jpeg');
-    if (b.audio) os.linkAudio = await db.subirArquivo(Buffer.from(b.audio, 'base64'), `OS${num}-audio.m4a`, b.audioMime || 'audio/mp4');
+    // Uploads pro Drive são opcionais: contas Google pessoais não deixam a
+    // service account guardar arquivos ("no storage quota"). A OS salva mesmo assim.
+    const tentarUpload = async (buf, nome, mime) => {
+      try { return await db.subirArquivo(buf, nome, mime); }
+      catch (e) { console.warn(`Drive recusou ${nome}: ${e.message}`); return ''; }
+    };
+    if (b.foto) os.linkFoto = await tentarUpload(Buffer.from(b.foto, 'base64'), `OS${num}-placa.jpg`, b.fotoMime || 'image/jpeg');
+    if (b.audio) os.linkAudio = await tentarUpload(Buffer.from(b.audio, 'base64'), `OS${num}-audio.m4a`, b.audioMime || 'audio/mp4');
 
     const pdf = await gerarPdfOS(os);
-    os.linkPdf = await db.subirArquivo(pdf, `OS${num}.pdf`, 'application/pdf');
+    os.linkPdf = await tentarUpload(pdf, `OS${num}.pdf`, 'application/pdf');
     await db.salvarOS(os);
 
     res.json({ numero, total: os.total, data: os.data, pdfBase64: pdf.toString('base64') });
