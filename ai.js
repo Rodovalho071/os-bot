@@ -66,16 +66,22 @@ async function interpretarServico(texto) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: MODEL,
+      temperature: 0,
       response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
           content:
             'Você estrutura a fala de um mecânico brasileiro descrevendo um serviço. ' +
-            'Extraia as peças trocadas com seus valores em reais e o valor da mão de obra. ' +
+            'REGRA MAIS IMPORTANTE: liste TODAS as peças e serviços mencionados, sem omitir NENHUM. ' +
+            'Se uma peça for citada sem valor, inclua mesmo assim com valor 0. ' +
+            'Percorra a fala do início ao fim e confira que cada item citado virou uma linha. ' +
+            'Extraia o valor em reais de cada peça e o valor da mão de obra. ' +
             'Códigos como "15w40" ou "dot4" fazem parte do nome da peça, não são valores. ' +
             'Medidas ("60 amperes", "4 litros") também fazem parte do nome. ' +
+            'Valores falados podem vir como "cento e oitenta", "1200", "R$ 45,50" — converta para número. ' +
             'Se o mecânico citar o carro (ex.: "fiat argo prata"), extraia em "carro". ' +
+            'Não invente itens nem valores que não foram ditos. ' +
             'Responda APENAS em JSON: {"itens": [{"desc": "nome da peça", "valor": 0.0}], ' +
             '"mao_de_obra": 0.0, "carro": "..." ou null}',
         },
