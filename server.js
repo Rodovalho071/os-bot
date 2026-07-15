@@ -8,7 +8,7 @@ const db = require('./sheets');
 const { gerarPdfOS } = require('./pdf');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '25mb' })); // fotos/áudios chegam em base64
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 // Números autorizados a usar o bot (separados por vírgula), ex.: "5511999990000"
@@ -204,9 +204,103 @@ async function salvar(de, r) {
     'Encaminha esse PDF pro cliente se quiser. 📤');
 }
 
+// ======================================================
+// APP WEB — mesma inteligência, sem depender do WhatsApp
+// ======================================================
+const path = require('path');
+
+// PIN opcional: defina a variável APP_PIN no Railway pra proteger o app
+function pinOk(req) {
+  const pin = process.env.APP_PIN;
+  return !pin || req.headers['x-pin'] === pin;
+}
+function exigePin(req, res) {
+  if (pinOk(req)) return true;
+  res.status(401).json({ erro: 'PIN incorreto' });
+  return false;
+}
+
+// Lê a placa a partir da foto
+app.post('/api/placa', async (req, res) => {
+  if (!exigePin(req, res)) return;
+  try {
+    const buf = Buffer.from(req.body.imagem, 'base64');
+    const leitura = await ai.lerPlaca(buf, req.body.mime || 'image/jpeg');
+    res.json(leitura);
+  } catch (e) {
+    console.error('api/placa:', e.message);
+    res.status(500).json({ erro: 'Falha ao ler a placa' });
+  }
+});
+
+// Transcreve o áudio (ou recebe texto) e estrutura peças + mão de obra
+app.post('/api/servico', async (req, res) => {
+  if (!exigePin(req, res)) return;
+  try {
+    let texto = (req.body.texto || '').trim();
+    if (!texto && req.body.audio) {
+      const buf = Buffer.from(req.body.audio, 'base64');
+      texto = await ai.transcrever(buf, req.body.mime || 'audio/mp4');
+    }
+    if (!texto) return res.status(400).json({ erro: 'Sem áudio nem texto' });
+    const servico = await ai.interpretarServico(texto);
+    res.json({ transcricao: texto, ...servico });
+  } catch (e) {
+    console.error('api/servico:', e.message);
+    res.status(500).json({ erro: 'Falha ao entender o serviço' });
+  }
+});
+
+// Salva a OS: planilha + arquivos no Drive + PDF (devolvido em base64)
+app.post('/api/os', async (req, res) => {
+  if (!exigePin(req, res)) return;
+  try {
+    const b = req.body;
+    const numero = await db.proximoNumero();
+    const itens = (b.itens || []).map((i) => ({ desc: String(i.desc || ''), valor: Number(i.valor) || 0 }))
+      .filter((i) => i.desc);
+    const os = {
+      numero,
+      data: new Date().toISOString(),
+      placa: String(b.placa || '').toUpperCase(),
+      carro: b.carro || '',
+      itens,
+      maoDeObra: Number(b.maoDeObra) || 0,
+      transcricao: b.transcricao || '',
+    };
+    os.total = itens.reduce((s, i) => s + i.valor, 0) + os.maoDeObra;
+    const num = String(numero).padStart(4, '0');
+
+    if (b.foto) os.linkFoto = await db.subirArquivo(Buffer.from(b.foto, 'base64'), `OS${num}-placa.jpg`, b.fotoMime || 'image/jpeg');
+    if (b.audio) os.linkAudio = await db.subirArquivo(Buffer.from(b.audio, 'base64'), `OS${num}-audio.m4a`, b.audioMime || 'audio/mp4');
+
+    const pdf = await gerarPdfOS(os);
+    os.linkPdf = await db.subirArquivo(pdf, `OS${num}.pdf`, 'application/pdf');
+    await db.salvarOS(os);
+
+    res.json({ numero, total: os.total, data: os.data, pdfBase64: pdf.toString('base64') });
+  } catch (e) {
+    console.error('api/os:', e.message);
+    res.status(500).json({ erro: 'Falha ao salvar a OS' });
+  }
+});
+
+// Fechamento do mês + últimas OS
+app.get('/api/resumo', async (req, res) => {
+  if (!exigePin(req, res)) return;
+  try {
+    const [fechamento, ultimas] = await Promise.all([db.fechamentoDoMes(), db.listarUltimas(30)]);
+    res.json({ fechamento, ultimas });
+  } catch (e) {
+    console.error('api/resumo:', e.message);
+    res.status(500).json({ erro: 'Falha ao consultar a planilha' });
+  }
+});
+
 // ---------- Início ----------
 const PORT = process.env.PORT || 3000;
-app.get('/', (_req, res) => res.send('Bot OS no ar 🔧'));
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'app.html')));
+app.get('/status', (_req, res) => res.send('Bot OS no ar 🔧'));
 db.inicializar()
   .then(() => app.listen(PORT, () => console.log(`Bot rodando na porta ${PORT}`)))
   .catch((e) => { console.error('Falha ao inicializar planilha:', e); process.exit(1); });

@@ -129,6 +129,12 @@ async function historicoDaPlaca(placa) {
   return todas.filter((o) => (o.placa || '').toUpperCase() === placa.toUpperCase());
 }
 
+// Últimas N ordens de serviço (mais recentes primeiro)
+async function listarUltimas(n = 20) {
+  const todas = await lerTodas();
+  return todas.slice(-n).reverse();
+}
+
 module.exports = {
-  inicializar, salvarOS, proximoNumero, subirArquivo, fechamentoDoMes, historicoDaPlaca,
+  inicializar, salvarOS, proximoNumero, subirArquivo, fechamentoDoMes, historicoDaPlaca, listarUltimas,
 };

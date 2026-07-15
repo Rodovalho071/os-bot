@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>OS Rápida</title>
+<style>
+  :root{
+    --azul:#0d5c8f; --azul-esc:#0a4368; --verde:#1d9e75; --verde-esc:#0f6e56;
+    --fundo:#f4f4f0; --card:#ffffff; --texto:#22221f; --cinza:#6b6a64;
+    --borda:#dddcd4; --vermelho:#c0392b; --ambar:#ba7517;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--fundo); color:var(--texto); font-size:17px;}
+  header{background:var(--azul); color:#fff; padding:14px 16px; position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px;}
+  header h1{font-size:19px; margin:0; flex:1;}
+  header button{background:rgba(255,255,255,.15); border:none; color:#fff; font-size:15px; padding:8px 14px; border-radius:8px;}
+  main{padding:16px; max-width:560px; margin:0 auto; padding-bottom:60px;}
+  .card{background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:16px; margin-bottom:14px;}
+  .btn{display:block; width:100%; border:none; border-radius:12px; padding:16px; font-size:18px; font-weight:600; color:#fff; background:var(--azul); margin:10px 0; cursor:pointer;}
+  .btn:active{background:var(--azul-esc);}
+  .btn.verde{background:var(--verde);} .btn.verde:active{background:var(--verde-esc);}
+  .btn.cinza{background:#888780;} .btn.contorno{background:#fff; color:var(--azul); border:2px solid var(--azul);}
+  .btn:disabled{opacity:.45;}
+  label{display:block; font-size:14px; color:var(--cinza); margin:12px 0 4px; font-weight:600;}
+  input[type=text], input[type=number], input[type=password], textarea{width:100%; font-size:18px; padding:12px; border:1.5px solid var(--borda); border-radius:10px; background:#fff; color:var(--texto);}
+  textarea{min-height:100px;}
+  .placa-input{font-size:26px; letter-spacing:4px; text-transform:uppercase; text-align:center; font-weight:700;}
+  .hint{font-size:13.5px; color:var(--cinza); margin-top:6px; line-height:1.45;}
+  .passo{font-size:13px; font-weight:700; color:var(--azul); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;}
+  h2{font-size:20px; margin:2px 0 10px;}
+  .foto-preview{width:100%; border-radius:10px; margin-top:10px; display:none; border:1px solid var(--borda);}
+  .status{font-size:14.5px; margin-top:8px; color:var(--ambar); font-weight:600; min-height:20px;}
+  .status.ok{color:var(--verde);}
+  .mic-btn{width:110px; height:110px; border-radius:50%; border:none; background:var(--azul); color:#fff; font-size:15px; font-weight:700; display:block; margin:14px auto; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.2);}
+  .mic-btn.gravando{background:var(--vermelho); animation:pulsa 1.2s infinite;}
+  @keyframes pulsa{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
+  .item-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
+  .item-row input.desc{flex:1;}
+  .item-row input.val{width:110px; text-align:right;}
+  .item-row button{border:none; background:none; color:var(--vermelho); font-size:22px; padding:4px 8px;}
+  .total-linha{display:flex; justify-content:space-between; font-size:22px; font-weight:800; padding:14px 4px 4px; border-top:2px solid var(--texto); margin-top:10px;}
+  .os-item{background:var(--card); border:1px solid var(--borda); border-radius:12px; padding:14px 16px; margin-bottom:10px;}
+  .os-item .l1{display:flex; justify-content:space-between; font-weight:700; font-size:18px;}
+  .os-item .l2{display:flex; justify-content:space-between; color:var(--cinza); font-size:14.5px; margin-top:3px;}
+  .fechamento{display:flex; gap:12px;}
+  .fechamento .bloco{flex:1; text-align:center; padding:12px 6px; background:#e6f1fb; border-radius:10px;}
+  .fechamento .num{font-size:22px; font-weight:800; color:var(--azul);}
+  .fechamento .rot{font-size:12.5px; color:var(--cinza);}
+  .sec-titulo{font-size:14px; font-weight:700; color:var(--cinza); text-transform:uppercase; margin:16px 0 4px; letter-spacing:.5px;}
+  .vazio{text-align:center; color:var(--cinza); padding:26px 10px; font-size:15.5px;}
+  .tela{display:none;} .tela.ativa{display:block;}
+  .nav-passos{display:flex; gap:8px;}
+  .nav-passos .btn{flex:1;}
+  .carregando{text-align:center; padding:20px; color:var(--cinza);}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>OS Rápida</h1>
+  <button id="btnVoltar" style="display:none" onclick="irHome()">← Início</button>
+</header>
+
+<main>
+
+<!-- PIN -->
+<section id="telaPin" class="tela">
+  <div class="card">
+    <h2>Senha da oficina</h2>
+    <p class="hint">Digite o PIN configurado no sistema.</p>
+    <input type="password" id="campoPin" inputmode="numeric" placeholder="PIN">
+    <button class="btn" onclick="salvarPin()">Entrar</button>
+  </div>
+</section>
+
+<!-- HOME -->
+<section id="telaHome" class="tela ativa">
+  <button class="btn verde" style="font-size:22px; padding:20px" onclick="novaOS()">+ Nova Ordem de Serviço</button>
+  <div class="card">
+    <div class="sec-titulo" style="margin-top:0">Fechamento de <span id="mesAtual"></span></div>
+    <div class="fechamento">
+      <div class="bloco"><div class="num" id="fecTotal">—</div><div class="rot">faturamento</div></div>
+      <div class="bloco"><div class="num" id="fecQtd">—</div><div class="rot">ordens</div></div>
+      <div class="bloco"><div class="num" id="fecMao">—</div><div class="rot">mão de obra</div></div>
+    </div>
+  </div>
+  <div class="sec-titulo">Últimas ordens de serviço</div>
+  <div id="listaOS"><div class="carregando">Carregando…</div></div>
+</section>
+
+<!-- PASSO 1: PLACA -->
+<section id="telaPlaca" class="tela">
+  <div class="card">
+    <div class="passo">Passo 1 de 3</div>
+    <h2>Foto da placa</h2>
+    <button class="btn" onclick="document.getElementById('inputFoto').click()">📷 Fotografar a placa</button>
+    <input type="file" id="inputFoto" accept="image/*" capture="environment" style="display:none">
+    <img id="fotoPreview" class="foto-preview" alt="Foto da placa">
+    <div class="status" id="ocrStatus"></div>
+    <label>Placa (confira ou digite)</label>
+    <input type="text" id="campoPlaca" class="placa-input" maxlength="7" placeholder="ABC1D23" autocomplete="off">
+    <label>Carro (modelo, cor — opcional)</label>
+    <input type="text" id="campoCarro" placeholder="Ex.: Fiat Argo prata">
+  </div>
+  <div class="nav-passos">
+    <button class="btn cinza" onclick="irHome()">Cancelar</button>
+    <button class="btn" onclick="irPasso2()">Avançar →</button>
+  </div>
+</section>
+
+<!-- PASSO 2: VOZ -->
+<section id="telaVoz" class="tela">
+  <div class="card">
+    <div class="passo">Passo 2 de 3</div>
+    <h2>Fale o serviço</h2>
+    <p class="hint" style="margin-top:0">Aperte, fale as peças com valores e a mão de obra, e aperte de novo pra parar. Ex.: <em>"pastilha 180, disco 320, mão de obra 250"</em></p>
+    <button class="mic-btn" id="btnMic" onclick="alternarGravacao()">🎤<br>FALAR</button>
+    <div class="status" id="vozStatus" style="text-align:center"></div>
+    <label>Ou escreva aqui</label>
+    <textarea id="transcricao" placeholder="peça valor, peça valor, mão de obra valor"></textarea>
+  </div>
+  <div class="nav-passos">
+    <button class="btn cinza" onclick="mostrar('telaPlaca')">← Voltar</button>
+    <button class="btn" id="btnMontar" onclick="irPasso3()">Montar resumo →</button>
+  </div>
+</section>
+
+<!-- PASSO 3: RESUMO -->
+<section id="telaResumo" class="tela">
+  <div class="card">
+    <div class="passo">Passo 3 de 3</div>
+    <h2>Confira a OS</h2>
+    <div style="display:flex; justify-content:space-between"><strong id="resPlaca"></strong><span id="resCarro" style="color:var(--cinza)"></span></div>
+    <div class="sec-titulo">Peças</div>
+    <div id="listaItens"></div>
+    <button class="btn contorno" style="padding:10px; font-size:15px" onclick="addItem('',0)">+ adicionar peça</button>
+    <div class="sec-titulo">Mão de obra</div>
+    <input type="number" id="campoMao" inputmode="decimal" step="0.01" min="0" placeholder="0,00" oninput="atualizaTotal()">
+    <div class="total-linha"><span>TOTAL</span><span id="resTotal">R$ 0,00</span></div>
+  </div>
+  <div class="nav-passos">
+    <button class="btn cinza" onclick="mostrar('telaVoz')">← Voltar</button>
+    <button class="btn verde" id="btnSalvar" onclick="salvarOS()">✓ Salvar OS</button>
+  </div>
+</section>
+
+<!-- CONCLUÍDA -->
+<section id="telaPronta" class="tela">
+  <div class="card" style="text-align:center">
+    <div style="font-size:52px">✅</div>
+    <h2 id="prontaTitulo">OS salva!</h2>
+    <p class="hint" id="prontaInfo"></p>
+  </div>
+  <button class="btn verde" onclick="compartilharPdf()">📤 Enviar PDF pro cliente</button>
+  <button class="btn" onclick="imprimirPdf()">🖨️ Imprimir / ver PDF</button>
+  <button class="btn contorno" onclick="novaOS()">+ Nova OS</button>
+  <button class="btn cinza" onclick="irHome()">Início</button>
+</section>
+
+</main>
+
+<script>
+'use strict';
+const brl = v => 'R$ ' + (Number(v)||0).toFixed(2).replace('.', ',');
+const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+let atual = null;          // OS em montagem
+let ultimaOS = null;       // resultado do salvamento (com PDF)
+let rec = null, gravando = false, chunksAudio = [], mimeAudio = '';
+
+/* ---------- comunicação com o servidor ---------- */
+async function api(caminho, corpo) {
+  const opts = {
+    method: corpo ? 'POST' : 'GET',
+    headers: { 'Content-Type': 'application/json', 'x-pin': localStorage.getItem('os_pin') || '' },
+  };
+  if (corpo) opts.body = JSON.stringify(corpo);
+  const r = await fetch(caminho, opts);
+  if (r.status === 401) { mostrar('telaPin'); throw new Error('PIN'); }
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).erro || 'Erro no servidor');
+  return r.json();
+}
+function salvarPin(){ localStorage.setItem('os_pin', document.getElementById('campoPin').value.trim()); irHome(); }
+
+/* ---------- navegação ---------- */
+function mostrar(id){
+  document.querySelectorAll('.tela').forEach(t=>t.classList.remove('ativa'));
+  document.getElementById(id).classList.add('ativa');
+  document.getElementById('btnVoltar').style.display = (id==='telaHome') ? 'none' : 'inline-block';
+  window.scrollTo(0,0);
+}
+function irHome(){ pararGravacao(); renderHome(); mostrar('telaHome'); }
+
+/* ---------- home ---------- */
+async function renderHome(){
+  document.getElementById('mesAtual').textContent = MESES[new Date().getMonth()];
+  try {
+    const r = await api('/api/resumo');
+    document.getElementById('fecTotal').textContent = brl(r.fechamento.total);
+    document.getElementById('fecMao').textContent = brl(r.fechamento.maoDeObra);
+    document.getElementById('fecQtd').textContent = r.fechamento.qtd;
+    const cont = document.getElementById('listaOS');
+    if (!r.ultimas.length) { cont.innerHTML = '<div class="vazio">Nenhuma OS ainda. Toque em <strong>Nova Ordem de Serviço</strong>.</div>'; return; }
+    cont.innerHTML = r.ultimas.map(o => `<div class="os-item">
+      <div class="l1"><span>${o.placa}</span><span>${brl(o.total)}</span></div>
+      <div class="l2"><span>${o.carro || 'veículo não informado'}</span><span>OS ${String(o.numero).padStart(4,'0')} · ${new Date(o.data).toLocaleDateString('pt-BR')}</span></div>
+    </div>`).join('');
+  } catch(e) {
+    if (e.message !== 'PIN') document.getElementById('listaOS').innerHTML = '<div class="vazio">Sem conexão com o servidor.<br>' + e.message + '</div>';
+  }
+}
+
+/* ---------- passo 1: placa ---------- */
+function novaOS(){
+  atual = { itens: [], maoDeObra: 0 };
+  ultimaOS = null;
+  ['campoPlaca','campoCarro','transcricao'].forEach(id => document.getElementById(id).value = '');
+  const img = document.getElementById('fotoPreview'); img.src=''; img.style.display='none';
+  document.getElementById('ocrStatus').textContent = '';
+  document.getElementById('vozStatus').textContent = '';
+  mostrar('telaPlaca');
+}
+
+document.getElementById('campoPlaca').addEventListener('input', e=>{
+  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,7);
+});
+
+document.getElementById('inputFoto').addEventListener('change', async e=>{
+  const arq = e.target.files && e.target.files[0];
+  if(!arq) return;
+  const img = document.getElementById('fotoPreview');
+  img.src = URL.createObjectURL(arq);
+  img.style.display = 'block';
+  const st = document.getElementById('ocrStatus');
+  st.className = 'status'; st.textContent = 'Lendo a placa…';
+  try {
+    const { blobB64, mime } = await comprimirFoto(arq);
+    atual.foto = blobB64; atual.fotoMime = mime;
+    const r = await api('/api/placa', { imagem: blobB64, mime });
+    if (r.placa) {
+      document.getElementById('campoPlaca').value = r.placa;
+      if (r.carro && !document.getElementById('campoCarro').value) document.getElementById('campoCarro').value = r.carro;
+      st.className = 'status ok';
+      st.textContent = '✓ Placa lida' + (r.confianca !== 'alta' ? ' — confira se está certa' : '') + '.';
+    } else {
+      st.textContent = 'Não deu pra ler com certeza — digite a placa abaixo.';
+    }
+  } catch(err) {
+    if (err.message !== 'PIN') st.textContent = 'Leitura automática falhou — digite a placa. (' + err.message + ')';
+  }
+});
+
+// reduz a foto pra upload rápido
+async function comprimirFoto(arquivo){
+  const bmp = await createImageBitmap(arquivo);
+  const escala = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(bmp.width*escala); cv.height = Math.round(bmp.height*escala);
+  cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+  const blob = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', 0.85));
+  return { blobB64: await blobParaB64(blob), mime: 'image/jpeg' };
+}
+function blobParaB64(blob){
+  return new Promise((ok, erro) => {
+    const fr = new FileReader();
+    fr.onload = () => ok(fr.result.split(',')[1]);
+    fr.onerror = erro;
+    fr.readAsDataURL(blob);
+  });
+}
+
+function irPasso2(){
+  const placa = document.getElementById('campoPlaca').value.trim();
+  if (placa.length < 7) { alert('Confira a placa: precisa ter 7 caracteres (ex.: ABC1D23).'); return; }
+  atual.placa = placa;
+  atual.carro = document.getElementById('campoCarro').value.trim();
+  mostrar('telaVoz');
+}
+
+/* ---------- passo 2: gravação de áudio ---------- */
+async function alternarGravacao(){
+  const st = document.getElementById('vozStatus');
+  if (gravando) { pararGravacao(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mimeAudio = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
+              : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+    rec = mimeAudio ? new MediaRecorder(stream, { mimeType: mimeAudio }) : new MediaRecorder(stream);
+    mimeAudio = rec.mimeType || mimeAudio || 'audio/mp4';
+    chunksAudio = [];
+    rec.ondataavailable = e => { if (e.data.size) chunksAudio.push(e.data); };
+    rec.onstop = () => { stream.getTracks().forEach(t=>t.stop()); };
+    rec.start();
+    gravando = true;
+    const b = document.getElementById('btnMic');
+    b.classList.add('gravando'); b.innerHTML = '⏹<br>PARAR';
+    st.textContent = 'Gravando… fale as peças e valores.';
+  } catch(e) {
+    st.textContent = 'Sem acesso ao microfone — escreva no campo abaixo.';
+  }
+}
+function pararGravacao(){
+  if (rec && gravando) { try { rec.stop(); } catch(e){} }
+  gravando = false;
+  const b = document.getElementById('btnMic');
+  if (b) { b.classList.remove('gravando'); b.innerHTML = '🎤<br>FALAR'; }
+  const st = document.getElementById('vozStatus');
+  if (st && chunksAudio.length) st.textContent = '✓ Áudio gravado. Toque em "Montar resumo".';
+}
+
+/* ---------- passo 3: montar e salvar ---------- */
+async function irPasso3(){
+  pararGravacao();
+  const btn = document.getElementById('btnMontar');
+  const texto = document.getElementById('transcricao').value.trim();
+  if (!texto && !chunksAudio.length) { alert('Grave um áudio ou escreva o serviço.'); return; }
+  btn.disabled = true; btn.textContent = 'Entendendo…';
+  try {
+    const corpo = {};
+    if (texto) corpo.texto = texto;
+    else {
+      const blob = new Blob(chunksAudio, { type: mimeAudio });
+      atual.audio = await blobParaB64(blob);
+      atual.audioMime = mimeAudio;
+      corpo.audio = atual.audio;
+      corpo.mime = mimeAudio;
+    }
+    const r = await api('/api/servico', corpo);
+    atual.itens = r.itens || [];
+    atual.maoDeObra = r.maoDeObra || 0;
+    atual.transcricao = r.transcricao;
+    if (r.carro && !atual.carro) atual.carro = r.carro;
+    document.getElementById('transcricao').value = r.transcricao;
+    document.getElementById('resPlaca').textContent = atual.placa;
+    document.getElementById('resCarro').textContent = atual.carro || '';
+    document.getElementById('campoMao').value = atual.maoDeObra || '';
+    renderItens();
+    mostrar('telaResumo');
+  } catch(e) {
+    if (e.message !== 'PIN') alert('Não consegui entender: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Montar resumo →';
+  }
+}
+
+function renderItens(){
+  const cont = document.getElementById('listaItens');
+  cont.innerHTML = '';
+  if (!atual.itens.length) cont.innerHTML = '<p class="hint">Nenhuma peça identificada — adicione abaixo.</p>';
+  atual.itens.forEach((it, i)=>{
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = '<input class="desc" type="text"><input class="val" type="number" inputmode="decimal" step="0.01" min="0"><button title="remover">✕</button>';
+    row.querySelector('.desc').value = it.desc;
+    row.querySelector('.desc').oninput = e=>{ atual.itens[i].desc = e.target.value; };
+    row.querySelector('.val').value = it.valor || '';
+    row.querySelector('.val').oninput = e=>{ atual.itens[i].valor = parseFloat(e.target.value)||0; atualizaTotal(); };
+    row.querySelector('button').onclick = ()=>{ atual.itens.splice(i,1); renderItens(); };
+    cont.appendChild(row);
+  });
+  atualizaTotal();
+}
+function addItem(d,v){ atual.itens.push({desc:d||'', valor:v||0}); renderItens(); }
+function atualizaTotal(){
+  atual.maoDeObra = parseFloat(document.getElementById('campoMao').value)||0;
+  const total = atual.itens.reduce((s,i)=>s+(Number(i.valor)||0),0) + atual.maoDeObra;
+  document.getElementById('resTotal').textContent = brl(total);
+  return total;
+}
+
+async function salvarOS(){
+  atual.itens = atual.itens.filter(i=>i.desc.trim());
+  const total = atualizaTotal();
+  if (!atual.itens.length && !atual.maoDeObra) { alert('A OS está vazia.'); return; }
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    const r = await api('/api/os', {
+      placa: atual.placa, carro: atual.carro, itens: atual.itens,
+      maoDeObra: atual.maoDeObra, transcricao: atual.transcricao,
+      foto: atual.foto, fotoMime: atual.fotoMime,
+      audio: atual.audio, audioMime: atual.audioMime,
+    });
+    ultimaOS = r;
+    document.getElementById('prontaTitulo').textContent = 'OS ' + String(r.numero).padStart(4,'0') + ' salva!';
+    document.getElementById('prontaInfo').textContent = atual.placa + ' — total ' + brl(r.total) + '. Já está na planilha da oficina.';
+    mostrar('telaPronta');
+  } catch(e) {
+    if (e.message !== 'PIN') alert('Falha ao salvar: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '✓ Salvar OS';
+  }
+}
+
+/* ---------- PDF: compartilhar e imprimir ---------- */
+function pdfArquivo(){
+  const bytes = Uint8Array.from(atob(ultimaOS.pdfBase64), c=>c.charCodeAt(0));
+  const nome = 'OS-' + String(ultimaOS.numero).padStart(4,'0') + '.pdf';
+  return new File([bytes], nome, { type: 'application/pdf' });
+}
+async function compartilharPdf(){
+  if (!ultimaOS) return;
+  const arq = pdfArquivo();
+  if (navigator.canShare && navigator.canShare({ files: [arq] })) {
+    try { await navigator.share({ files: [arq], title: arq.name }); return; } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  imprimirPdf(); // fallback: abre o PDF pra salvar/encaminhar manualmente
+}
+function imprimirPdf(){
+  if (!ultimaOS) return;
+  window.open(URL.createObjectURL(pdfArquivo()), '_blank');
+}
+
+/* ---------- início ---------- */
+renderHome();
+</script>
+</body>
+</html>
