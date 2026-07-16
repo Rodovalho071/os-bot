@@ -127,21 +127,23 @@
   </div>
 </section>
 
-<!-- PASSO 3: RESUMO -->
+<!-- PASSO 3: RESUMO / EDIÇÃO -->
 <section id="telaResumo" class="tela">
   <div class="card">
-    <div class="passo">Passo 3 de 3</div>
-    <h2>Confira a OS</h2>
+    <div class="passo" id="resTitulo">Passo 3 de 3</div>
+    <h2 id="resSubtitulo">Confira a OS</h2>
     <div style="display:flex; justify-content:space-between"><strong id="resPlaca"></strong><span id="resCarro" style="color:var(--cinza)"></span></div>
     <div class="sec-titulo">Peças</div>
     <div id="listaItens"></div>
     <button class="btn contorno" style="padding:10px; font-size:15px" onclick="addItem('',0)">+ adicionar peça</button>
+    <button class="btn contorno" style="padding:10px; font-size:15px" id="btnMicMais" onclick="falarMais()">🎤 Falar mais serviços</button>
+    <div class="status" id="maisStatus" style="text-align:center"></div>
     <div class="sec-titulo">Mão de obra</div>
     <input type="number" id="campoMao" inputmode="decimal" step="0.01" min="0" placeholder="0,00" oninput="atualizaTotal()">
     <div class="total-linha"><span>TOTAL</span><span id="resTotal">R$ 0,00</span></div>
   </div>
   <div class="nav-passos">
-    <button class="btn cinza" onclick="mostrar('telaVoz')">← Voltar</button>
+    <button class="btn cinza" id="btnVoltarResumo" onclick="mostrar('telaVoz')">← Voltar</button>
     <button class="btn verde" id="btnSalvar" onclick="salvarOS()">✓ Salvar OS</button>
   </div>
 </section>
@@ -202,9 +204,9 @@ async function renderHome(){
     document.getElementById('fecQtd').textContent = r.fechamento.qtd;
     const cont = document.getElementById('listaOS');
     if (!r.ultimas.length) { cont.innerHTML = '<div class="vazio">Nenhuma OS ainda. Toque em <strong>Nova Ordem de Serviço</strong>.</div>'; return; }
-    cont.innerHTML = r.ultimas.map(o => `<div class="os-item">
+    cont.innerHTML = r.ultimas.map(o => `<div class="os-item" style="cursor:pointer" onclick="abrirOS(${JSON.stringify(String(o.numero))})">
       <div class="l1"><span>${o.placa}</span><span>${brl(o.total)}</span></div>
-      <div class="l2"><span>${o.carro || 'veículo não informado'}</span><span>OS ${String(o.numero).padStart(4,'0')} · ${new Date(o.data).toLocaleDateString('pt-BR')}</span></div>
+      <div class="l2"><span>${o.carro || 'veículo não informado'}</span><span>OS ${String(o.numero).padStart(4,'0')} · ${new Date(o.data).toLocaleDateString('pt-BR')} ›</span></div>
     </div>`).join('');
   } catch(e) {
     if (e.message !== 'PIN') document.getElementById('listaOS').innerHTML = '<div class="vazio">Sem conexão com o servidor.<br>' + e.message + '</div>';
@@ -310,6 +312,78 @@ function pararGravacao(){
 }
 
 /* ---------- passo 3: montar e salvar ---------- */
+/* ---------- abrir OS existente (editar / reimprimir) ---------- */
+async function abrirOS(numero){
+  try {
+    const os = await api('/api/os/' + numero);
+    atual = {
+      numero: os.numero, placa: os.placa, carro: os.carro,
+      itens: os.itens || [], maoDeObra: os.maoDeObra || 0,
+      transcricao: os.transcricao || '',
+    };
+    prepararResumo(true);
+    mostrar('telaResumo');
+  } catch(e) {
+    if (e.message !== 'PIN') alert('Não consegui abrir a OS: ' + e.message);
+  }
+}
+
+function prepararResumo(edicao){
+  document.getElementById('resTitulo').textContent = edicao ? ('OS ' + String(atual.numero).padStart(4,'0')) : 'Passo 3 de 3';
+  document.getElementById('resSubtitulo').textContent = edicao ? 'Editar / reimprimir' : 'Confira a OS';
+  document.getElementById('btnSalvar').textContent = edicao ? '✓ Salvar alterações' : '✓ Salvar OS';
+  document.getElementById('btnVoltarResumo').onclick = edicao ? irHome : () => mostrar('telaVoz');
+  document.getElementById('resPlaca').textContent = atual.placa;
+  document.getElementById('resCarro').textContent = atual.carro || '';
+  document.getElementById('campoMao').value = atual.maoDeObra || '';
+  document.getElementById('maisStatus').textContent = '';
+  renderItens();
+}
+
+/* ---------- acrescentar serviços por voz na tela de resumo ---------- */
+let recMais = null, gravandoMais = false, chunksMais = [], mimeMais = '';
+async function falarMais(){
+  const st = document.getElementById('maisStatus');
+  const btn = document.getElementById('btnMicMais');
+  if (gravandoMais) {
+    try { recMais.stop(); } catch(e){}
+    gravandoMais = false;
+    btn.textContent = '🎤 Falar mais serviços';
+    st.textContent = 'Entendendo…';
+    setTimeout(async () => {
+      try {
+        const blob = new Blob(chunksMais, { type: mimeMais });
+        const r = await api('/api/servico', { audio: await blobParaB64(blob), mime: mimeMais });
+        atual.itens = atual.itens.concat(r.itens || []);
+        atual.maoDeObra = (Number(atual.maoDeObra) || 0) + (Number(r.maoDeObra) || 0);
+        atual.transcricao = (atual.transcricao ? atual.transcricao + ' | ' : '') + r.transcricao;
+        document.getElementById('campoMao').value = atual.maoDeObra || '';
+        renderItens();
+        st.className = 'status ok'; st.textContent = '✓ Serviços adicionados — confira abaixo.';
+      } catch(e) {
+        if (e.message !== 'PIN') { st.className = 'status'; st.textContent = 'Não entendi o áudio: ' + e.message; }
+      }
+    }, 400);
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mimeMais = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
+             : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+    recMais = mimeMais ? new MediaRecorder(stream, { mimeType: mimeMais }) : new MediaRecorder(stream);
+    mimeMais = recMais.mimeType || mimeMais || 'audio/mp4';
+    chunksMais = [];
+    recMais.ondataavailable = e => { if (e.data.size) chunksMais.push(e.data); };
+    recMais.onstop = () => { stream.getTracks().forEach(t=>t.stop()); };
+    recMais.start();
+    gravandoMais = true;
+    btn.textContent = '⏹ Parar e adicionar';
+    st.className = 'status'; st.textContent = 'Gravando… fale os serviços novos.';
+  } catch(e) {
+    st.textContent = 'Sem acesso ao microfone.';
+  }
+}
+
 async function irPasso3(){
   pararGravacao();
   const btn = document.getElementById('btnMontar');
@@ -332,10 +406,7 @@ async function irPasso3(){
     atual.transcricao = r.transcricao;
     if (r.carro && !atual.carro) atual.carro = r.carro;
     document.getElementById('transcricao').value = r.transcricao;
-    document.getElementById('resPlaca').textContent = atual.placa;
-    document.getElementById('resCarro').textContent = atual.carro || '';
-    document.getElementById('campoMao').value = atual.maoDeObra || '';
-    renderItens();
+    prepararResumo(false);
     mostrar('telaResumo');
   } catch(e) {
     if (e.message !== 'PIN') alert('Não consegui entender: ' + e.message);
@@ -374,22 +445,26 @@ async function salvarOS(){
   const total = atualizaTotal();
   if (!atual.itens.length && !atual.maoDeObra) { alert('A OS está vazia.'); return; }
   const btn = document.getElementById('btnSalvar');
+  const editando = !!atual.numero;
   btn.disabled = true; btn.textContent = 'Salvando…';
   try {
-    const r = await api('/api/os', {
+    const corpo = {
       placa: atual.placa, carro: atual.carro, itens: atual.itens,
       maoDeObra: atual.maoDeObra, transcricao: atual.transcricao,
-      foto: atual.foto, fotoMime: atual.fotoMime,
-      audio: atual.audio, audioMime: atual.audioMime,
-    });
+    };
+    if (!editando) {
+      corpo.foto = atual.foto; corpo.fotoMime = atual.fotoMime;
+      corpo.audio = atual.audio; corpo.audioMime = atual.audioMime;
+    }
+    const r = await api(editando ? '/api/os/' + atual.numero : '/api/os', corpo);
     ultimaOS = r;
-    document.getElementById('prontaTitulo').textContent = 'OS ' + String(r.numero).padStart(4,'0') + ' salva!';
+    document.getElementById('prontaTitulo').textContent = 'OS ' + String(r.numero).padStart(4,'0') + (editando ? ' atualizada!' : ' salva!');
     document.getElementById('prontaInfo').textContent = atual.placa + ' — total ' + brl(r.total) + '. Já está na planilha da oficina.';
     mostrar('telaPronta');
   } catch(e) {
     if (e.message !== 'PIN') alert('Falha ao salvar: ' + e.message);
   } finally {
-    btn.disabled = false; btn.textContent = '✓ Salvar OS';
+    btn.disabled = false; btn.textContent = editando ? '✓ Salvar alterações' : '✓ Salvar OS';
   }
 }
 

@@ -295,6 +295,67 @@ app.post('/api/os', async (req, res) => {
   }
 });
 
+// Busca uma OS existente
+app.get('/api/os/:numero', async (req, res) => {
+  if (!exigePin(req, res)) return;
+  try {
+    const os = await db.buscarOS(req.params.numero);
+    if (!os) return res.status(404).json({ erro: 'OS não encontrada' });
+    const { linha, ...resto } = os;
+    res.json(resto);
+  } catch (e) {
+    console.error('api/os get:', e.message);
+    res.status(500).json({ erro: 'Falha ao buscar a OS' });
+  }
+});
+
+// Regenera o PDF de uma OS (pra reimprimir/reenviar)
+app.get('/api/os/:numero/pdf', async (req, res) => {
+  if (!exigePin(req, res)) return;
+  try {
+    const os = await db.buscarOS(req.params.numero);
+    if (!os) return res.status(404).json({ erro: 'OS não encontrada' });
+    const pdf = await gerarPdfOS(os);
+    res.json({ numero: os.numero, total: os.total, pdfBase64: pdf.toString('base64') });
+  } catch (e) {
+    console.error('api/os pdf:', e.message);
+    res.status(500).json({ erro: 'Falha ao gerar o PDF' });
+  }
+});
+
+// Atualiza uma OS (acrescentar serviços, corrigir valores etc.)
+app.post('/api/os/:numero', async (req, res) => {
+  if (!exigePin(req, res)) return;
+  try {
+    const existente = await db.buscarOS(req.params.numero);
+    if (!existente) return res.status(404).json({ erro: 'OS não encontrada' });
+    const b = req.body;
+    const itens = (b.itens || []).map((i) => ({ desc: String(i.desc || ''), valor: Number(i.valor) || 0 }))
+      .filter((i) => i.desc);
+    const os = {
+      ...existente,
+      placa: b.placa ? String(b.placa).toUpperCase() : existente.placa,
+      carro: b.carro !== undefined ? b.carro : existente.carro,
+      itens,
+      maoDeObra: Number(b.maoDeObra) || 0,
+      transcricao: b.transcricao !== undefined ? b.transcricao : existente.transcricao,
+    };
+    os.total = itens.reduce((s, i) => s + i.valor, 0) + os.maoDeObra;
+
+    const pdf = await gerarPdfOS(os);
+    try {
+      const num = String(os.numero).padStart(4, '0');
+      os.linkPdf = (await db.subirArquivo(pdf, `OS${num}-v2.pdf`, 'application/pdf')) || os.linkPdf;
+    } catch (e) { console.warn('Drive recusou PDF atualizado:', e.message); }
+
+    await db.atualizarOS(existente.linha, os);
+    res.json({ numero: os.numero, total: os.total, data: os.data, pdfBase64: pdf.toString('base64') });
+  } catch (e) {
+    console.error('api/os update:', e.message);
+    res.status(500).json({ erro: 'Falha ao atualizar a OS' });
+  }
+});
+
 // Fechamento do mês + últimas OS
 app.get('/api/resumo', async (req, res) => {
   if (!exigePin(req, res)) return;

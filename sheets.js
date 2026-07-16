@@ -135,6 +135,56 @@ async function listarUltimas(n = 20) {
   return todas.slice(-n).reverse();
 }
 
+// Converte a coluna "pecas" ("pastilha (180.00) + disco (320.00)") de volta em itens
+function parseItens(str) {
+  const itens = [];
+  const re = /(.+?) \((\d+(?:\.\d+)?)\)(?:\s\+\s|$)/g;
+  let m;
+  while ((m = re.exec(str || '')) !== null) itens.push({ desc: m[1], valor: parseFloat(m[2]) });
+  return itens;
+}
+
+// Busca uma OS pelo número (retorna também a linha da planilha)
+async function buscarOS(numero) {
+  const { sheets } = clients();
+  const r = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: `${ABA}!A2:L`,
+  });
+  const vals = r.data.values || [];
+  const i = vals.findIndex((v) => String(v[0]) === String(numero));
+  if (i < 0) return null;
+  const v = vals[i];
+  return {
+    linha: i + 2,
+    numero: v[0], data: v[1], placa: v[2], carro: v[3] || '',
+    itens: parseItens(v[4]),
+    maoDeObra: parseFloat(v[6]) || 0,
+    total: parseFloat(v[7]) || 0,
+    transcricao: v[8] || '',
+    linkFoto: v[9] || '', linkAudio: v[10] || '', linkPdf: v[11] || '',
+  };
+}
+
+// Regrava uma OS existente na mesma linha
+async function atualizarOS(linha, os) {
+  const { sheets } = clients();
+  const valores = [[
+    os.numero, os.data, os.placa, os.carro || '',
+    os.itens.map((i) => `${i.desc} (${i.valor.toFixed(2)})`).join(' + '),
+    os.itens.reduce((s, i) => s + i.valor, 0).toFixed(2),
+    os.maoDeObra.toFixed(2), os.total.toFixed(2),
+    os.transcricao || '', os.linkFoto || '', os.linkAudio || '', os.linkPdf || '',
+  ]];
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `${ABA}!A${linha}:L${linha}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: valores },
+  });
+}
+
 module.exports = {
-  inicializar, salvarOS, proximoNumero, subirArquivo, fechamentoDoMes, historicoDaPlaca, listarUltimas,
+  inicializar, salvarOS, proximoNumero, subirArquivo, fechamentoDoMes, historicoDaPlaca,
+  listarUltimas, buscarOS, atualizarOS,
 };
